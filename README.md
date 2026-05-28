@@ -4,6 +4,7 @@
 ![SQLite](https://img.shields.io/badge/Database-SQLite-003B57?logo=sqlite&logoColor=white)
 ![SEC](https://img.shields.io/badge/Data-SEC%20EDGAR-red)
 ![License](https://img.shields.io/badge/License-MIT-green)
+![CI](https://github.com/mrspatbile/sec-holdings/actions/workflows/ci.yml/badge.svg)
 
 Real fund positions from SEC EDGAR (N-PORT + 13F), enriched with daily prices and a configurable rolling derivatives overlay. Input layer for portfolio risk analysis.
 
