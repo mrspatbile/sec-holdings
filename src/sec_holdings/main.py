@@ -134,10 +134,6 @@ def _group_holdings_by_filing(holdings: list[dict]) -> dict[str, list[dict]]:
 
 
 def _filing_meta_from_holdings(holdings: list[dict], cik: str) -> dict:
-    """
-    Extract filing-level metadata from a group of holdings that
-    share the same accession number.
-    """
     first = holdings[0]
     return {
         "source": first["source"],
@@ -146,10 +142,10 @@ def _filing_meta_from_holdings(holdings: list[dict], cik: str) -> dict:
         "form_type": "N-PORT" if first["source"] == "nport" else "13F-HR",
         "filing_date": first["filing_date"],
         "period_of_report": first["period"],
-        "reg_name": None,
+        "reg_name": first.get("reg_name"),
         "series_name": None,
-        "total_assets": None,
-        "net_assets": None,
+        "total_assets": first.get("total_assets"),
+        "net_assets": first.get("net_assets"),
     }
 
 

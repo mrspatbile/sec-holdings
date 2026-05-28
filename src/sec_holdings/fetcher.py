@@ -144,6 +144,15 @@ class Fetcher:
                 continue
             try:
                 obj = filing.obj()
+                # extract fund-level metadata
+                try:
+                    reg_name = obj.name
+                    net_assets = float(obj.fund_info.net_assets) if obj.fund_info.net_assets else None
+                    total_assets = float(obj.fund_info.total_assets) if obj.fund_info.total_assets else None
+                except Exception:
+                    reg_name = None
+                    net_assets = None
+                    total_assets = None
             except Exception as exc:
                 log.warning("Could not parse NPORT-P %s: %s", filing.accession_no, exc)
                 continue
@@ -167,7 +176,8 @@ class Fetcher:
             for _, row in df.iterrows():
                 holdings.append(
                     self._normalise_nport_row(
-                        row, period, filing_date, accession, total_value
+                        row, period, filing_date, accession, total_value,
+                        reg_name, net_assets, total_assets
                     )
                 )
 
@@ -183,7 +193,11 @@ class Fetcher:
         filing_date: str,
         accession: str,
         total_value: Optional[float],
-    ) -> dict:
+        reg_name: Optional[str] = None,
+        net_assets: Optional[float] = None,
+        total_assets: Optional[float] = None,
+        ) -> dict:
+
         value_usd = _safe_float(row.get("value_usd"))
         pct_val = (
             _safe_float(row.get("pct_value"))
@@ -208,6 +222,9 @@ class Fetcher:
             "period": period,
             "filing_date": filing_date,
             "accession": accession,
+            "reg_name": reg_name,
+            "net_assets": net_assets,
+            "total_assets": total_assets,
         }
 
     # ------------------------------------------------------------------ #
@@ -230,6 +247,7 @@ class Fetcher:
                 log.warning("Could not parse 13F %s: %s", filing.accession_no, exc)
                 continue
 
+            reg_name = self.company.name   
             period = str(filing.period_of_report)
             filing_date = str(filing.filing_date)
             accession = filing.accession_no
@@ -250,7 +268,8 @@ class Fetcher:
             for _, row in df.iterrows():
                 holdings.append(
                     self._normalise_13f_row(
-                        row, period, filing_date, accession, total_value
+                        row, period, filing_date, accession, total_value,
+                        reg_name=reg_name,
                     )
                 )
             
@@ -266,6 +285,7 @@ class Fetcher:
         filing_date: str,
         accession: str,
         total_value: Optional[float],
+        reg_name: Optional[str] = None,
     ) -> dict:
         value_usd = _safe_float(row.get("Value"))
         pct_val = (
@@ -292,6 +312,9 @@ class Fetcher:
             "period": period,
             "filing_date": filing_date,
             "accession": accession,
+            "reg_name": reg_name,
+            "net_assets": None,
+            "total_assets": None,
         }
 
 

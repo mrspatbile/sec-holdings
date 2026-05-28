@@ -7,21 +7,23 @@ No EDGAR calls -- edgartools Company and filing objects are mocked.
 What is tested
 --------------
 - _normalise_13f_row: field mapping, value passthrough, pct_val calculation
-- _normalise_nport_row: field mapping, value passthrough, pct_val fallback
+- _normalise_nport_row: field mapping, value passthrough, pct_val fallback,
+                        reg_name / net_assets / total_assets passthrough
 - _safe_str: None handling, whitespace stripping, NaN handling
 - _safe_float: type coercion, NaN handling, invalid strings
 - fetch() routing: source=13f calls _fetch_13f, source=nport calls _fetch_nport
+- _filing_meta_from_holdings: reads reg_name / net_assets / total_assets
 """
 
 from __future__ import annotations
 
-import math
 import pandas as pd
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import patch
 
 from sec_holdings.fetcher import Fetcher, _safe_str, _safe_float
+from sec_holdings.main import _filing_meta_from_holdings
 
 
 # ------------------------------------------------------------------ #
@@ -127,70 +129,54 @@ class TestNormalise13FRow:
         defaults.update(kwargs)
         return pd.Series(defaults)
 
-    def test_name_mapped_from_issuer(self):
-        row = self._make_row()
-        result = self.fetcher._normalise_13f_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
+    def _call(self, row, **kwargs):
+        return self.fetcher._normalise_13f_row(
+            row, self.period, self.filing_date,
+            self.accession, self.total_value, **kwargs
         )
-        assert result["name"] == "Alphabet Inc"
+
+    def test_name_mapped_from_issuer(self):
+        assert self._call(self._make_row())["name"] == "Alphabet Inc"
 
     def test_cusip_mapped(self):
-        row = self._make_row()
-        result = self.fetcher._normalise_13f_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["cusip"] == "02079K305"
+        assert self._call(self._make_row())["cusip"] == "02079K305"
 
     def test_ticker_mapped(self):
-        row = self._make_row()
-        result = self.fetcher._normalise_13f_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["ticker"] == "GOOGL"
+        assert self._call(self._make_row())["ticker"] == "GOOGL"
 
     def test_value_usd_passthrough(self):
-        row = self._make_row(Value=2_000_000.0)
-        result = self.fetcher._normalise_13f_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["value_usd"] == 2_000_000.0
+        assert self._call(self._make_row(Value=2_000_000.0))["value_usd"] == 2_000_000.0
 
     def test_pct_val_calculated(self):
-        row = self._make_row(Value=2_000_000.0)
-        result = self.fetcher._normalise_13f_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["pct_val"] == pytest.approx(20.0)
+        assert self._call(self._make_row(Value=2_000_000.0))["pct_val"] == pytest.approx(20.0)
 
     def test_source_is_13f(self):
-        row = self._make_row()
-        result = self.fetcher._normalise_13f_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["source"] == "13f"
+        assert self._call(self._make_row())["source"] == "13f"
 
     def test_payoff_profile_is_long(self):
-        row = self._make_row()
-        result = self.fetcher._normalise_13f_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["payoff_profile"] == "Long"
+        assert self._call(self._make_row())["payoff_profile"] == "Long"
 
     def test_isin_is_none(self):
-        """13F does not report ISIN."""
-        row = self._make_row()
-        result = self.fetcher._normalise_13f_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["isin"] is None
+        assert self._call(self._make_row())["isin"] is None
 
     def test_period_and_accession_stored(self):
-        row = self._make_row()
-        result = self.fetcher._normalise_13f_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
+        result = self._call(self._make_row())
         assert result["period"] == self.period
         assert result["accession"] == self.accession
+
+    def test_reg_name_stored(self):
+        result = self._call(self._make_row(), reg_name="Pershing Square Capital")
+        assert result["reg_name"] == "Pershing Square Capital"
+
+    def test_net_assets_is_none_for_13f(self):
+        """13F does not report net assets by regulation."""
+        result = self._call(self._make_row())
+        assert result["net_assets"] is None
+
+    def test_total_assets_is_none_for_13f(self):
+        """13F does not report total assets by regulation."""
+        result = self._call(self._make_row())
+        assert result["total_assets"] is None
 
 
 # ------------------------------------------------------------------ #
@@ -224,62 +210,110 @@ class TestNormaliseNPortRow:
         defaults.update(kwargs)
         return pd.Series(defaults)
 
-    def test_name_mapped(self):
-        row = self._make_row()
-        result = self.fetcher._normalise_nport_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
+    def _call(self, row, **kwargs):
+        return self.fetcher._normalise_nport_row(
+            row, self.period, self.filing_date,
+            self.accession, self.total_value, **kwargs
         )
-        assert result["name"] == "Apple Inc"
+
+    def test_name_mapped(self):
+        assert self._call(self._make_row())["name"] == "Apple Inc"
 
     def test_isin_mapped(self):
-        row = self._make_row()
-        result = self.fetcher._normalise_nport_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["isin"] == "US0378331005"
+        assert self._call(self._make_row())["isin"] == "US0378331005"
 
     def test_pct_val_from_pct_value(self):
-        row = self._make_row(pct_value=15.0)
-        result = self.fetcher._normalise_nport_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["pct_val"] == pytest.approx(15.0)
+        assert self._call(self._make_row(pct_value=15.0))["pct_val"] == pytest.approx(15.0)
 
     def test_pct_val_fallback_calculation(self):
-        """When pct_value is None, pct_val is calculated from value_usd / total."""
         row = self._make_row(pct_value=None, value_usd=100_000_000.0)
         result = self.fetcher._normalise_nport_row(
-            row, self.period, self.filing_date, self.accession, 1_000_000_000.0
+            row, self.period, self.filing_date,
+            self.accession, 1_000_000_000.0
         )
         assert result["pct_val"] == pytest.approx(10.0)
 
     def test_asset_category_mapped(self):
-        row = self._make_row(asset_category="EC")
-        result = self.fetcher._normalise_nport_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["asset_category"] == "EC"
+        assert self._call(self._make_row(asset_category="EC"))["asset_category"] == "EC"
 
     def test_country_mapped(self):
-        row = self._make_row(investment_country="US")
-        result = self.fetcher._normalise_nport_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["country"] == "US"
+        assert self._call(self._make_row(investment_country="US"))["country"] == "US"
 
     def test_coupon_rate_mapped(self):
-        row = self._make_row(annualized_rate=4.25)
-        result = self.fetcher._normalise_nport_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["coupon_rate"] == pytest.approx(4.25)
+        assert self._call(self._make_row(annualized_rate=4.25))["coupon_rate"] == pytest.approx(4.25)
 
     def test_source_is_nport(self):
-        row = self._make_row()
-        result = self.fetcher._normalise_nport_row(
-            row, self.period, self.filing_date, self.accession, self.total_value
-        )
-        assert result["source"] == "nport"
+        assert self._call(self._make_row())["source"] == "nport"
+
+    def test_reg_name_stored(self):
+        result = self._call(self._make_row(), reg_name="Fairholme Funds Inc")
+        assert result["reg_name"] == "Fairholme Funds Inc"
+
+    def test_net_assets_stored(self):
+        result = self._call(self._make_row(), net_assets=1_451_766_475.80)
+        assert result["net_assets"] == pytest.approx(1_451_766_475.80)
+
+    def test_total_assets_stored(self):
+        result = self._call(self._make_row(), total_assets=1_453_094_324.22)
+        assert result["total_assets"] == pytest.approx(1_453_094_324.22)
+
+    def test_defaults_to_none_without_fund_data(self):
+        """Calling without fund metadata should store None for all three fields."""
+        result = self._call(self._make_row())
+        assert result["reg_name"] is None
+        assert result["net_assets"] is None
+        assert result["total_assets"] is None
+
+
+# ------------------------------------------------------------------ #
+# _filing_meta_from_holdings                                          #
+# ------------------------------------------------------------------ #
+
+class TestFilingMetaFromHoldings:
+    def _make_holding(self, source="13f", **kwargs) -> dict:
+        base = {
+            "source": source,
+            "accession": "0001234567-24-000001",
+            "filing_date": "2024-05-15",
+            "period": "2024-03-31",
+            "reg_name": None,
+            "net_assets": None,
+            "total_assets": None,
+        }
+        base.update(kwargs)
+        return base
+
+    def test_reg_name_read_from_holding(self):
+        holdings = [self._make_holding(reg_name="Pershing Square Capital")]
+        meta = _filing_meta_from_holdings(holdings, "0001336528")
+        assert meta["reg_name"] == "Pershing Square Capital"
+
+    def test_net_assets_read_from_holding(self):
+        holdings = [self._make_holding(source="nport", net_assets=1_451_766_475.80)]
+        meta = _filing_meta_from_holdings(holdings, "0001096344")
+        assert meta["net_assets"] == pytest.approx(1_451_766_475.80)
+
+    def test_total_assets_read_from_holding(self):
+        holdings = [self._make_holding(source="nport", total_assets=1_453_094_324.22)]
+        meta = _filing_meta_from_holdings(holdings, "0001096344")
+        assert meta["total_assets"] == pytest.approx(1_453_094_324.22)
+
+    def test_none_when_not_provided(self):
+        holdings = [self._make_holding()]
+        meta = _filing_meta_from_holdings(holdings, "0001336528")
+        assert meta["reg_name"] is None
+        assert meta["net_assets"] is None
+        assert meta["total_assets"] is None
+
+    def test_form_type_nport(self):
+        holdings = [self._make_holding(source="nport")]
+        meta = _filing_meta_from_holdings(holdings, "0001096344")
+        assert meta["form_type"] == "N-PORT"
+
+    def test_form_type_13f(self):
+        holdings = [self._make_holding(source="13f")]
+        meta = _filing_meta_from_holdings(holdings, "0001336528")
+        assert meta["form_type"] == "13F-HR"
 
 
 # ------------------------------------------------------------------ #
