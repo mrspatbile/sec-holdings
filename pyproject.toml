@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sec-holdings"
+version = "0.1.0"
+description = "SEC EDGAR holdings fetcher (N-PORT + 13F) with daily price enrichment and rolling derivatives overlay"
+authors = [
+    {name = "mrspatbile", email = "mrspatbile@gmail.com"}
+]
+requires-python = ">=3.13"
+dependencies = [
+    "edgartools>=2.0,<6.0",
+    "yfinance",
+    "pandas",
+    "numpy",
+    "pyyaml",
+    "python-dotenv",
+    "tqdm",
+    "ipykernel",
+    "jupyterlab",
+    "nbstripout",
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["sec_holdings*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning:edgar.*",
+]
+

@@ -1,0 +1,11 @@
+edgartools
+yfinance
+pandas
+numpy
+pyyaml
+python-dotenv
+tqdm
+ipykernel
+jupyterlab
+nbstripout
+pytest

@@ -1,0 +1,32 @@
+# =============================================
+# Jupyter Notebooks
+# =============================================
+*.ipynb     filter=nbstripout
+*.ipynb     diff=nbstripout
+
+# Ignore Jupyter temporary files
+.ipynb_checkpoints/     export-ignore
+
+# =============================================
+# Python / Virtual Environment
+# =============================================
+venv/                   export-ignore
+.venv/                  export-ignore
+
+__pycache__/            export-ignore
+*.py[cod]               export-ignore
+
+.env                    export-ignore
+*.env                   export-ignore
+
+.DS_Store               export-ignore
+Thumbs.db               export-ignore
+
+# =============================================
+# Data / Database
+# =============================================
+*.db                    export-ignore
+*.db-shm                export-ignore
+*.db-wal                export-ignore
+data/                   export-ignore
+overlays/*.yaml         export-ignore

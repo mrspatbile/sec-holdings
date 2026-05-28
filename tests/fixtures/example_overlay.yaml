@@ -1,0 +1,39 @@
+# tests/fixtures/example_overlay.yaml
+# Minimal overlay used by test_derivatives.py -- not a real portfolio.
+
+base:
+  source: 13f
+  cik: "0001336528"
+  period: latest
+
+rolling:
+
+  - id: test_put
+    type: option
+    put_call: put
+    underlying: SPX
+    underlying_type: equity_index
+    notional: 10_000_000
+    strike: atm
+    tenor: 3M
+    start_date: "2021-01-01"
+    close_days_before_expiry: 7
+
+  - id: test_irs
+    type: interest_rate_swap
+    pay_leg: fixed
+    fixed_rate: market
+    tenor: 5Y
+    notional: 5_000_000
+    currency: USD
+    start_date: "2021-01-01"
+    close_days_before_expiry: 30
+
+  - id: test_fwd
+    type: fx_forward
+    pair: EURUSD
+    direction: buy
+    notional: 2_000_000
+    tenor: 3M
+    start_date: "2021-01-01"
+    close_days_before_expiry: 3

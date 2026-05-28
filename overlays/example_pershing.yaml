@@ -1,0 +1,60 @@
+# overlays/example_pershing.yaml
+#
+# Derivatives overlay for Pershing Square (13F, CIK 0001336528).
+#
+# This overlay adds rolling derivative positions on top of the base
+# 13F long equity portfolio. The base portfolio is never modified.
+#
+# All rates and strikes marked 'market' are resolved by the pricing
+# project at each roll open_date using current curves and spot prices.
+# CDS spreads have no free market data source and must be set explicitly.
+#
+# Usage
+# -----
+#   python -m sec_holdings.main \
+#       --cik 0001336528 \
+#       --source 13f \
+#       --overlay overlays/example_pershing.yaml
+
+base:
+  source: 13f
+  cik: "0001336528"
+  period: latest
+
+rolling:
+
+  # Equity index hedge -- rolling 3M ATM put on SPX
+  # Close 7 days before expiry, reopen same day
+  - id: spx_put_hedge
+    type: option
+    put_call: put
+    underlying: SPX
+    underlying_type: equity_index
+    notional: 50_000_000
+    strike: atm
+    tenor: 3M
+    start_date: "2021-06-30"
+    close_days_before_expiry: 7
+
+  # Rate hedge -- pay-fixed IRS, 5Y tenor
+  # Fixed rate resolved from par swap curve at each roll date
+  - id: irs_rate_hedge
+    type: interest_rate_swap
+    pay_leg: fixed
+    fixed_rate: market
+    tenor: 5Y
+    notional: 100_000_000
+    currency: USD
+    start_date: "2021-06-30"
+    close_days_before_expiry: 30
+
+  # FX hedge -- buy EUR / sell USD, 3M rolling forward
+  # Forward rate resolved from spot FX + rate differential at roll date
+  - id: eur_usd_fwd
+    type: fx_forward
+    pair: EURUSD
+    direction: buy
+    notional: 25_000_000
+    tenor: 3M
+    start_date: "2022-01-01"
+    close_days_before_expiry: 3

@@ -1,0 +1,17 @@
+README.md
+pyproject.toml
+src/sec_holdings/__init__.py
+src/sec_holdings/config.py
+src/sec_holdings/database.py
+src/sec_holdings/derivatives.py
+src/sec_holdings/fetcher.py
+src/sec_holdings/main.py
+src/sec_holdings/prices.py
+src/sec_holdings.egg-info/PKG-INFO
+src/sec_holdings.egg-info/SOURCES.txt
+src/sec_holdings.egg-info/dependency_links.txt
+src/sec_holdings.egg-info/requires.txt
+src/sec_holdings.egg-info/top_level.txt
+tests/test_derivatives.py
+tests/test_fetcher.py
+tests/test_prices.py
