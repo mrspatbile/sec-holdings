@@ -223,7 +223,7 @@ def run() -> None:
         # Step 3: fetch and persist daily prices (incremental)         #
         # ------------------------------------------------------------ #
         price_fetcher = PriceFetcher(config)
-        
+
         all_tickers = list({
             h["ticker"] for h in all_holdings if h.get("ticker")
         })
@@ -236,13 +236,18 @@ def run() -> None:
                 "%d tickers need price update (%d already fresh)",
                 len(stale), len(all_tickers) - len(stale),
             )
-            prices = price_fetcher.fetch_incremental(stale)
+            prices, ticker_status = price_fetcher.fetch_incremental(stale)
             if prices:
                 db.insert_prices(prices)
+            db.update_pricing_status(ticker_status)
         else:
             log.info("All prices fresh -- skipping yfinance")
             prices = []
 
+        # Set excluded_no_ticker for positions with no ticker
+        db.update_pricing_status({})
+
+        
         # ------------------------------------------------------------ #
         # Step 4: load and persist derivatives overlay                  #
         # ------------------------------------------------------------ #

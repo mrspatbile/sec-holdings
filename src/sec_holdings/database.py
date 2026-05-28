@@ -67,7 +67,8 @@ CREATE TABLE IF NOT EXISTS holdings (
     source          TEXT,
     period          TEXT,
     filing_date     TEXT,
-    accession       TEXT
+    accession       TEXT,
+    pricing_status  TEXT
 );
 
 CREATE TABLE IF NOT EXISTS daily_prices (
@@ -526,3 +527,28 @@ class Database:
             if last_date is None or last_date < as_of:
                 stale[ticker] = last_date
         return stale
+    
+    def update_pricing_status(self, ticker_status: dict[str, str]) -> None:
+        """
+        Update pricing_status for all holdings based on ticker resolution results.
+
+        Parameters
+        ----------
+        ticker_status : dict[str, str]
+            Keys are tickers. Values are one of:
+            'priced', 'partial', 'excluded_no_prices'.
+            Holdings with no ticker are set to 'excluded_no_ticker' automatically.
+        """
+        # Set excluded_no_ticker for holdings with no ticker
+        self._conn.execute(
+            "UPDATE holdings SET pricing_status = 'excluded_no_ticker' "
+            "WHERE ticker IS NULL AND pricing_status IS NULL"
+        )
+
+        # Set status for holdings with a ticker
+        for ticker, status in ticker_status.items():
+            self._conn.execute(
+                "UPDATE holdings SET pricing_status = ? WHERE ticker = ?",
+                (status, ticker),
+            )
+        self._conn.commit()

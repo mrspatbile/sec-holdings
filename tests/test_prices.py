@@ -216,27 +216,27 @@ class TestFetchIncremental:
         self.fetcher = PriceFetcher(MockConfig())
 
     def test_empty_stale_returns_empty(self):
-        result = self.fetcher.fetch_incremental({})
-        assert result == []
+        records, status = self.fetcher.fetch_incremental({})
+        assert records == []
+        assert status == {}
 
     def test_fetches_full_history_when_no_last_date(self):
         dates = ["2024-01-02", "2024-01-03"]
         mock_df = _make_single_ticker_df("AAPL", dates, [185.0, 186.0])
         with patch("yfinance.download", return_value=mock_df):
-            result = self.fetcher.fetch_incremental({"AAPL": None})
-        assert len(result) == 2
+            records, status = self.fetcher.fetch_incremental({"AAPL": None})
+        assert len(records) == 2
 
     def test_filters_to_dates_after_last_date(self):
         dates = ["2024-01-02", "2024-01-03", "2024-01-04"]
         mock_df = _make_single_ticker_df("AAPL", dates, [185.0, 186.0, 187.0])
         with patch("yfinance.download", return_value=mock_df):
-            result = self.fetcher.fetch_incremental({"AAPL": "2024-01-02"})
-        # only dates strictly after 2024-01-02
-        assert all(r["date"] > "2024-01-02" for r in result)
+            records, status = self.fetcher.fetch_incremental({"AAPL": "2024-01-02"})
+        assert all(r["date"] > "2024-01-02" for r in records)
 
     def test_sorted_by_ticker_then_date(self):
         dates = ["2024-01-03", "2024-01-02"]
         mock_df = _make_single_ticker_df("AAPL", dates, [186.0, 185.0])
         with patch("yfinance.download", return_value=mock_df):
-            result = self.fetcher.fetch_incremental({"AAPL": None})
-        assert result[0]["date"] < result[1]["date"]
+            records, status = self.fetcher.fetch_incremental({"AAPL": None})
+        assert records[0]["date"] < records[1]["date"]

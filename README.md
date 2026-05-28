@@ -10,13 +10,22 @@ Real fund positions from SEC EDGAR (N-PORT + 13F), enriched with daily prices an
 
 ---
 
+
 ## What this is
 
-A tool for obtaining real long equity and bond positions from SEC public filings, enriching them with daily market prices, and persisting the result to a clean SQLite database for use in a pricing engine and a risk management framework.
+A standalone tool for fetching real long equity and bond positions from SEC public filings (N-PORT and 13F) and enriching them with daily market prices from yfinance. The output is a clean SQLite database.
 
-N-PORT filings (mutual funds, ETFs) provide a complete monthly portfolio snapshot — positions, weights, NAV, and enough data to compute a cash residual. 13F filings (hedge funds) provide quarterly long equity positions only — no NAV, no cash, no shorts, no derivatives. These two sources have different scopes and are used differently downstream.
+It has no dependencies on any other project and no opinions about what you do with the data. It can be used as input for a risk system, a pricing engine, a research notebook, or anything else. That is the consumer's concern.
 
-This is not a reconstruction of what these funds actually hold at any given moment. It is a structured baseline — carry-forward positions from public filings, priced daily, with explicit flags for what can and cannot be priced.
+N-PORT (mutual funds, ETFs) provides monthly snapshots with NAV. 13F (hedge funds) provides quarterly long equity positions only — no NAV, no cash, no complete portfolio context.
+
+For consumers that need a complete portfolio, two enrichment steps are not provided by this project and must be handled by the consumer:
+
+**Cash** — for N-PORT funds, cash can be computed as `net_assets - sum(priced positions)`. `net_assets` is stored in the DB. For 13F funds, net assets are not available in the filing.
+
+**Derivatives** — the DB stores rolling derivative contract specs (instrument type, tenor, notional, strike) via the YAML overlay. Fair value, Greeks, and delta equivalents must be computed by the consumer using their own pricing model.
+
+Without these two enrichments the portfolio weights will not sum to 100% and leverage metrics will be incomplete.
 
 ---
 
@@ -100,10 +109,7 @@ Not all securities in a filing have a resolvable yfinance ticker. Bonds, private
 What this project does about it: positions are flagged with a `pricing_status` field — `priced`, `excluded` (no price available), or `partial` (delisted mid-period). Downstream projects filter on `pricing_status = 'priced'` to ensure clean time series.
 
 **Objective of this project.**
-This is not a tool to reconstruct exactly what these funds hold. It is a tool to obtain real long equity and bond positions from public filings, enrich them with daily market prices. The output is a clean, queryable portfolio dataset for use in a pricing engine and a risk management framework. Completeness is not the goal. Consistency and explicitness about what is and is not included are.
-
-**Equity and plain bond pricing only.**
-Derivative positions from the overlay are passed as instrument specs to the pricing project. This layer does not price them.
+This is not a tool to reconstruct exactly what these funds hold. It is a tool to obtain real long equity and bond positions from public filings, enrich them with daily market prices. Completeness is not the goal. Consistency and explicitness about what is and is not included are.
 
 **Suitable funds.**
 Works well for concentrated, low-turnover equity funds (Fairholme, Sequoia, Longleaf, Pershing Square) and plain vanilla bond funds. Not suitable for money market funds, derivatives-heavy strategies, or illiquid credit.

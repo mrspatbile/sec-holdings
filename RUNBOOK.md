@@ -199,14 +199,13 @@ Once the DB is populated, import directly from other projects:
 from pathlib import Path
 from sec_holdings.config import Config
 from sec_holdings.database import Database
-from sec_holdings.derivatives import DerivativesLoader
 
 config = Config(
     cik="0001336528",
     source="13f",
     years=5,
     db_path=Path("../sec-holdings/data/sec_holdings.db"),
-    overlay_path=Path("../sec-holdings/overlays/example_pershing.yaml"),
+    overlay_path=None,
     user_agent="sec-holdings mrspatbile@gmail.com",
 )
 
@@ -221,6 +220,7 @@ all_legs  = loader.load()
 active    = loader.contracts_active_on(date(2026, 3, 31), all_legs)
 ```
 When using 13F funds, note that holdings represent long equity positions only. No NAV, no cash, no complete portfolio. Use N-PORT funds for portfolio-level analysis.
+
 ---
 
 ## Known fund CIKs

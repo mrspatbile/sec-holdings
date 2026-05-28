@@ -27,7 +27,7 @@ from __future__ import annotations
 from typing import Optional
 
 import logging
-from datetime import date
+from datetime import date, timedelta
 from typing import Optional
 
 import pandas as pd
@@ -127,7 +127,9 @@ class PriceFetcher:
         return self.fetch(tickers)
     
 
-    def fetch_incremental(self, stale: dict[str, Optional[str]]) -> list[dict]:
+    def fetch_incremental(
+        self, stale: dict[str, Optional[str]]
+    ) -> tuple[list[dict], dict[str, str]]:
         """
         Fetch prices only for stale tickers, each from its own start date.
 
@@ -135,38 +137,43 @@ class PriceFetcher:
         ----------
         stale : dict[str, Optional[str]]
             Keys are tickers that need updating.
-            Values are the last price date in DB (YYYY-MM-DD), or None if
-            the ticker has no prices at all.
-            As returned by Database.get_stale_tickers().
+            Values are the last price date in DB or None.
 
         Returns
         -------
-        list[dict]
-            Daily price records for all stale tickers, ready for DB insert.
-            Sorted by ticker then date ascending.
+        records : list[dict]
+            Daily price records ready for DB insert.
+        ticker_status : dict[str, str]
+            Keys are tickers. Values are 'priced', 'partial', or
+            'excluded_no_prices'.
         """
         if not stale:
             log.info("All prices are fresh -- nothing to fetch")
-            return []
+            return [], {}
 
         log.info("Fetching incremental prices for %d stale tickers", len(stale))
 
         all_records: list[dict] = []
+        ticker_status: dict[str, str] = {}
+
         for ticker, last_date in stale.items():
-            start = (
-                last_date                              # append from last known date
-                if last_date
-                else self.config.start_date.isoformat()  # full history if never fetched
-            )
+            start = last_date or self.config.start_date.isoformat()
             records = self._download_chunk([ticker], start_date=start)
-            # filter to only dates after last_date to avoid re-inserting known rows
+
             if last_date:
                 records = [r for r in records if r["date"] > last_date]
-            all_records.extend(records)
+
+            if not records:
+                ticker_status[ticker] = "excluded_no_prices"
+            else:
+                latest = max(r["date"] for r in records)
+                cutoff = (date.today() - timedelta(days=3)).isoformat()
+                ticker_status[ticker] = "priced" if latest >= cutoff else "partial"
+                all_records.extend(records)
 
         all_records.sort(key=lambda x: (x["ticker"], x["date"]))
         log.info("Incremental fetch: %d new price records", len(all_records))
-        return all_records
+        return all_records, ticker_status
 
     # ------------------------------------------------------------------ #
     # Internal                                                             #

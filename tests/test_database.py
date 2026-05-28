@@ -323,3 +323,42 @@ class TestDerivativeContracts:
                                        status="closed")])
         active = db.get_active_contracts_on("2024-04-01")
         assert active == []
+
+class TestUpdatePricingStatus:
+    def test_sets_priced(self, db):
+        fid = db.insert_filing(_filing())
+        db.insert_holdings([_holding(fid, ticker="AAPL")], fid)
+        db.update_pricing_status({"AAPL": "priced"})
+        cur = db._conn.execute("SELECT pricing_status FROM holdings WHERE ticker = 'AAPL'")
+        assert cur.fetchone()[0] == "priced"
+
+    def test_sets_excluded_no_prices(self, db):
+        fid = db.insert_filing(_filing())
+        db.insert_holdings([_holding(fid, ticker="HHC")], fid)
+        db.update_pricing_status({"HHC": "excluded_no_prices"})
+        cur = db._conn.execute("SELECT pricing_status FROM holdings WHERE ticker = 'HHC'")
+        assert cur.fetchone()[0] == "excluded_no_prices"
+
+    def test_sets_partial(self, db):
+        fid = db.insert_filing(_filing())
+        db.insert_holdings([_holding(fid, ticker="SEGRT")], fid)
+        db.update_pricing_status({"SEGRT": "partial"})
+        cur = db._conn.execute("SELECT pricing_status FROM holdings WHERE ticker = 'SEGRT'")
+        assert cur.fetchone()[0] == "partial"
+
+    def test_sets_excluded_no_ticker(self, db):
+        fid = db.insert_filing(_filing())
+        db.insert_holdings([_holding(fid, ticker=None, name="US Treasury Bill")], fid)
+        db.update_pricing_status({})
+        cur = db._conn.execute(
+            "SELECT pricing_status FROM holdings WHERE ticker IS NULL"
+        )
+        assert cur.fetchone()[0] == "excluded_no_ticker"
+
+    def test_does_not_overwrite_existing_status(self, db):
+        fid = db.insert_filing(_filing())
+        db.insert_holdings([_holding(fid, ticker="AAPL")], fid)
+        db.update_pricing_status({"AAPL": "priced"})
+        db.update_pricing_status({})
+        cur = db._conn.execute("SELECT pricing_status FROM holdings WHERE ticker = 'AAPL'")
+        assert cur.fetchone()[0] == "priced"
