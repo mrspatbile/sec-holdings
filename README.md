@@ -6,7 +6,7 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![CI](https://github.com/mrspatbile/sec-holdings/actions/workflows/ci.yml/badge.svg)
 
-Real fund positions from SEC EDGAR (N-PORT + 13F), enriched with daily prices and a configurable rolling derivatives overlay. Input layer for portfolio risk analysis.
+Real fund positions from SEC EDGAR (N-PORT + 13F), enriched with daily prices and a configurable rolling derivatives overlay (experimental). 
 
 ---
 
@@ -26,19 +26,6 @@ For consumers that need a complete portfolio, two enrichment steps are not provi
 **Derivatives** — the DB stores rolling derivative contract specs (instrument type, tenor, notional, strike) via the YAML overlay. Fair value, Greeks, and delta equivalents must be computed by the consumer using their own pricing model.
 
 Without these two enrichments the portfolio weights will not sum to 100% and leverage metrics will be incomplete.
-
----
-
-## What it connects to
-
-```
-sec-holdings              pricing project           manco-risk-mngmt
-─────────────────         ──────────────────        ──────────────────────
-N-PORT positions    →     price derivatives   →     VaR, leverage
-13F positions             build curves              concentration
-daily prices              compute Greeks            AIFM / UCITS metrics
-rolling derivatives       delta equivalents         Annex IV / VI
-```
 
 ---
 
