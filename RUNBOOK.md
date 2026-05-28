@@ -21,7 +21,10 @@ python -m sec_holdings.main --cik 0001336528 --source 13f --overlay overlays/exa
 
 ### Refresh an existing fund
 
-Same command as above. Already-fetched filings are skipped automatically. Only new filings since the last run are downloaded.
+Same command as above. Both filings and prices are fetched incrementally:
+- Filings already in the DB are skipped by accession number
+- Prices are only downloaded from the last known date per ticker forward
+- A same-day re-run fetches nothing if no new data exists
 
 ### Check what is in the DB
 
@@ -151,9 +154,8 @@ Some N-PORT filings are amendments or cover multiple series. edgartools may retu
 
 ---
 
-### Prices re-downloading on every run
-
-Expected behaviour for now. yfinance is called on every run regardless of what is already in the DB. `INSERT OR IGNORE` prevents duplicates but the download still happens. Optimisation — check price freshness before calling yfinance — is a known improvement for a future issue.
+### Prices fetch only missing dates
+Prices are fetched incrementally per ticker. Only dates after the last known price date are downloaded. A fresh run after a full fetch skips yfinance entirely for up-to-date tickers.
 
 ---
 

@@ -21,6 +21,11 @@ This is not a risk system and not a pricing system. It builds the portfolio thos
 - `tests/test_fetcher.py` — normalisation tests for 13F and N-PORT rows; field mapping, pct_val calculation, routing
 - `tests/fixtures/example_overlay.yaml` — minimal overlay fixture for tests
 - `RUNBOOK.md` — operational procedures, troubleshooting, usage as package
+- Incremental price fetching -- `get_stale_tickers` skips fresh tickers, appends only missing dates per ticker
+- `reg_name`, `net_assets`, `total_assets` populated from edgartools for N-PORT; `reg_name` from company name for 13F
+- `tests/test_database.py` -- 35 tests covering schema, filings, holdings, prices, contracts, stale tickers, latest filing date
+- Updated `tests/test_fetcher.py` -- reg_name / net_assets / total_assets field mapping and `_filing_meta_from_holdings`
+- Updated `tests/test_prices.py` -- `fetch_incremental` tests
 
 ## Known edgartools quirks
 
@@ -31,6 +36,10 @@ This is not a risk system and not a pricing system. It builds the portfolio thos
 - `edgar.set_identity(config.user_agent)` must be called in `Fetcher.__init__` before any EDGAR request
 - 13F `Value` is in full dollars as returned by edgartools (do not multiply by 1000)
 - DeprecationWarnings from edgartools internals are suppressed in `conftest.py` — they are not our code to fix
+- `obj.name` returns the fund name (e.g. `Fairholme Funds Inc - The Fairholme Fund`)
+- `obj.fund_info.net_assets` and `obj.fund_info.total_assets` are available for N-PORT; not present in 13F by regulation
+- `obj.general_info` returns a pydantic model with series name, CIK, LEI, fiscal year end, and reporting period
+- yfinance returns MultiIndex columns `('Close', 'TICKER')` even for single-ticker downloads — `_flatten` handles both cases
 
 ## Architecture
 
@@ -61,9 +70,10 @@ tests/
   conftest.py          Suppresses DeprecationWarnings from edgartools
   fixtures/            Static XML and YAML files -- no EDGAR calls in tests
     example_overlay.yaml
-  test_fetcher.py      Normalisation tests -- no EDGAR calls
+  test_fetcher.py      Normalisation tests -- no EDGAR calls; reg_name / net_assets / total_assets coverage
   test_derivatives.py  Rolling contract logic tests
-  test_prices.py       Price fetcher tests -- yfinance mocked
+  test_prices.py       Price fetcher tests -- yfinance mocked; fetch_incremental coverage
+  test_database.py     Schema, filings, holdings, prices, contracts, stale tickers, latest filing date
 ```
 
 ## Stack

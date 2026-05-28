@@ -91,6 +91,10 @@ Rates and strikes resolve from market data at each roll date where possible. CDS
 
 **Suitable funds.** Works well for equity long-only funds (Fairholme, Sequoia, Longleaf, Pershing Square) and plain vanilla bond funds. Not suitable for money market funds, derivatives-heavy strategies, or illiquid credit.
 
+**Prices fetched incrementally.** Only missing dates per ticker are downloaded on each run. A run after a full fetch skips yfinance entirely for up-to-date tickers.
+
+**Fund metadata.** `reg_name`, `net_assets`, and `total_assets` are populated for N-PORT filings. 13F does not report net assets by regulation — `reg_name` is sourced from the company name.
+
 ---
 
 ## Project structure
@@ -110,6 +114,7 @@ tests/
   test_fetcher.py
   test_derivatives.py
   test_prices.py
+  test_database.py
 ```
 
 ---
