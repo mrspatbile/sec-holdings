@@ -38,6 +38,7 @@ import logging
 import sys
 from itertools import groupby
 from pathlib import Path
+from datetime import date, timedelta
 
 from sec_holdings.config import Config
 from sec_holdings.database import Database
@@ -223,15 +224,28 @@ def run() -> None:
         )
 
         # ------------------------------------------------------------ #
-        # Step 3: fetch and persist daily prices                        #
+        # Step 3: fetch and persist daily prices (incremental)         #
         # ------------------------------------------------------------ #
         price_fetcher = PriceFetcher(config)
-        prices = price_fetcher.fetch_for_holdings(all_holdings)
+        
+        all_tickers = list({
+            h["ticker"] for h in all_holdings if h.get("ticker")
+        })
 
-        if prices:
-            db.insert_prices(prices)
+        as_of = (date.today() - timedelta(days=1)).isoformat()
+        stale = db.get_stale_tickers(all_tickers, as_of)
+
+        if stale:
+            log.info(
+                "%d tickers need price update (%d already fresh)",
+                len(stale), len(all_tickers) - len(stale),
+            )
+            prices = price_fetcher.fetch_incremental(stale)
+            if prices:
+                db.insert_prices(prices)
         else:
-            log.warning("No prices fetched -- check tickers in holdings")
+            log.info("All prices fresh -- skipping yfinance")
+            prices = []
 
         # ------------------------------------------------------------ #
         # Step 4: load and persist derivatives overlay                  #

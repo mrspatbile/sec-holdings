@@ -475,3 +475,54 @@ class Database:
         )
         cols = [d[0] for d in cur.description]
         return [dict(zip(cols, row)) for row in cur.fetchall()]
+    
+    def get_latest_filing_date(self, cik: str) -> Optional[str]:
+        """
+        Return the most recent filing_date for a CIK already in the DB.
+        Used by the fetcher to skip filings already stored.
+
+        Returns
+        -------
+        str
+            Latest filing date in YYYY-MM-DD format, or None if CIK not in DB.
+        """
+        cur = self._conn.execute(
+            "SELECT MAX(filing_date) FROM filings WHERE cik = ?",
+            (cik,),
+        )
+        row = cur.fetchone()
+        return row[0] if row and row[0] else None
+
+    def get_stale_tickers(self, tickers: list[str], as_of: str) -> dict[str, Optional[str]]:
+        """
+        Return tickers that need a price update, mapped to their last price date.
+
+        A ticker needs updating when:
+        - It has no prices in the DB at all (last_date = None)
+        - Its latest price date is before as_of
+
+        Parameters
+        ----------
+        tickers : list[str]
+            All tickers to check.
+        as_of : str
+            Target date in YYYY-MM-DD format. Tickers with prices up to
+            this date are considered fresh and excluded from the result.
+
+        Returns
+        -------
+        dict[str, Optional[str]]
+            Keys are stale tickers. Values are the last price date in DB,
+            or None if the ticker has no prices at all.
+        """
+        stale: dict[str, Optional[str]] = {}
+        for ticker in tickers:
+            cur = self._conn.execute(
+                "SELECT MAX(date) FROM daily_prices WHERE ticker = ?",
+                (ticker,),
+            )
+            row = cur.fetchone()
+            last_date = row[0] if row and row[0] else None
+            if last_date is None or last_date < as_of:
+                stale[ticker] = last_date
+        return stale

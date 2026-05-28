@@ -24,6 +24,7 @@ Volume is included for liquidity context but not used in risk metrics.
 """
 
 from __future__ import annotations
+from typing import Optional
 
 import logging
 from datetime import date
@@ -124,25 +125,65 @@ class PriceFetcher:
             )
 
         return self.fetch(tickers)
+    
+
+    def fetch_incremental(self, stale: dict[str, Optional[str]]) -> list[dict]:
+        """
+        Fetch prices only for stale tickers, each from its own start date.
+
+        Parameters
+        ----------
+        stale : dict[str, Optional[str]]
+            Keys are tickers that need updating.
+            Values are the last price date in DB (YYYY-MM-DD), or None if
+            the ticker has no prices at all.
+            As returned by Database.get_stale_tickers().
+
+        Returns
+        -------
+        list[dict]
+            Daily price records for all stale tickers, ready for DB insert.
+            Sorted by ticker then date ascending.
+        """
+        if not stale:
+            log.info("All prices are fresh -- nothing to fetch")
+            return []
+
+        log.info("Fetching incremental prices for %d stale tickers", len(stale))
+
+        all_records: list[dict] = []
+        for ticker, last_date in stale.items():
+            start = (
+                last_date                              # append from last known date
+                if last_date
+                else self.config.start_date.isoformat()  # full history if never fetched
+            )
+            records = self._download_chunk([ticker], start_date=start)
+            # filter to only dates after last_date to avoid re-inserting known rows
+            if last_date:
+                records = [r for r in records if r["date"] > last_date]
+            all_records.extend(records)
+
+        all_records.sort(key=lambda x: (x["ticker"], x["date"]))
+        log.info("Incremental fetch: %d new price records", len(all_records))
+        return all_records
 
     # ------------------------------------------------------------------ #
     # Internal                                                             #
     # ------------------------------------------------------------------ #
 
-    def _download_chunk(self, tickers: list[str]) -> list[dict]:
-        """
-        Download one chunk of tickers via yfinance batch download.
-        Failed tickers are logged and excluded -- never raises.
-        """
+    def _download_chunk(self, tickers: list[str], start_date: str = None) -> list[dict]:
+        use_start = start_date or self.config.start_date.isoformat()
         try:
             raw: pd.DataFrame = yf.download(
                 tickers=tickers,
-                start=self.config.start_date.isoformat(),
+                start=use_start,
                 end=date.today().isoformat(),
                 auto_adjust=True,
                 progress=False,
                 threads=True,
             )
+        
         except Exception as exc:
             log.error("yfinance download failed for chunk %s: %s", tickers, exc)
             return []
@@ -152,6 +193,8 @@ class PriceFetcher:
             return []
 
         return self._flatten(raw, tickers)
+    
+   
 
     def _flatten(self, raw: pd.DataFrame, tickers: list[str]) -> list[dict]:
         """
@@ -166,16 +209,31 @@ class PriceFetcher:
         # Single ticker -- simple column index
         if len(tickers) == 1:
             ticker = tickers[0]
-            for dt, row in raw.iterrows():
-                adj_close = _safe_float(row.get("Close"))
-                if adj_close is None:
-                    continue
-                records.append({
-                    "ticker": ticker,
-                    "date": str(dt.date()),
-                    "adj_close": adj_close,
-                    "volume": _safe_float(row.get("Volume")),
-                })
+            # newer yfinance returns MultiIndex even for single ticker
+            if isinstance(raw.columns, pd.MultiIndex):
+                close_col = ("Close", ticker)
+                vol_col = ("Volume", ticker)
+                for dt, row in raw.iterrows():
+                    adj_close = _safe_float(row.get(close_col))
+                    if adj_close is None:
+                        continue
+                    records.append({
+                        "ticker": ticker,
+                        "date": str(dt.date()),
+                        "adj_close": adj_close,
+                        "volume": _safe_float(row.get(vol_col)),
+                    })
+            else:
+                for dt, row in raw.iterrows():
+                    adj_close = _safe_float(row.get("Close"))
+                    if adj_close is None:
+                        continue
+                    records.append({
+                        "ticker": ticker,
+                        "date": str(dt.date()),
+                        "adj_close": adj_close,
+                        "volume": _safe_float(row.get("Volume")),
+                    })
             return records
 
         # Multiple tickers -- MultiIndex columns (field, ticker)
