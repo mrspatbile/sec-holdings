@@ -97,6 +97,8 @@ python -m sec_holdings.main --cik YOUR_CIK --source nport
 
 ## Adding a new overlay scenario
 
+Note: the derivatives overlay is experimental and not part of the core workflow. See known constraints in README for scope.
+
 1. Create a new YAML in `overlays/`:
 
 ```bash
@@ -218,7 +220,7 @@ loader    = DerivativesLoader(config)
 all_legs  = loader.load()
 active    = loader.contracts_active_on(date(2026, 3, 31), all_legs)
 ```
-
+When using 13F funds, note that holdings represent long equity positions only. No NAV, no cash, no complete portfolio. Use N-PORT funds for portfolio-level analysis.
 ---
 
 ## Known fund CIKs

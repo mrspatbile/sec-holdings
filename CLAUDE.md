@@ -2,7 +2,11 @@
 
 ## What this project is
 
-A data sourcing and portfolio construction layer that fetches real fund holdings from SEC EDGAR, enriches them with daily market prices, and applies a configurable rolling derivatives overlay. The output is a SQLite database consumed downstream by a pricing engine and a risk management framework.
+A data sourcing layer that fetches real long equity and bond positions from SEC public filings (N-PORT and 13F), enriches them with daily market prices, and persists the result to SQLite for use downstream by a pricing engine and a risk management framework.
+
+N-PORT (mutual funds, ETFs) provides a complete monthly portfolio snapshot — positions, weights, NAV, and enough data to compute a cash residual. 13F (hedge funds) provides quarterly long equity positions only — no NAV, no cash, no shorts, no derivatives. These two sources have different scopes and are used differently downstream.
+
+The carry-forward assumption — positions frozen between filing dates — is intentional, documented, and wrong by design. It is the honest baseline given the data available.
 
 This is not a risk system and not a pricing system. It builds the portfolio those systems consume. The carry-forward assumption — positions frozen between filing dates — is intentional, documented, and wrong by design. It is the honest baseline given the data available.
 
@@ -52,6 +56,7 @@ daily prices              compute Greeks            AIFM / UCITS metrics
 rolling derivatives       delta equivalents         Annex IV / VI
 ```
 
+N-PORT funds provide a complete portfolio context. 13F funds are long equity position trackers only — not suitable for portfolio-level risk modeling.
 ## Project structure
 
 ```
@@ -118,6 +123,7 @@ This is a research and learning project at the intersection of financial regulat
 - The carry-forward assumption is intentional. Do not suggest making it dynamic or adding intra-period position interpolation.
 - The overlay is additive only. Do not add position deletion or modification logic.
 - Derivative pricing does not belong here. Do not add valuation logic for any instrument type.
+- 13F is a position tracker, not a complete portfolio. Do not attempt to model cash, leverage, or portfolio-level metrics from 13F data alone.
 
 ## Code style
 
@@ -128,4 +134,4 @@ This is a research and learning project at the intersection of financial regulat
 
 ## Scope boundary
 
-This project is the data and portfolio construction layer only. There is a separate pricing project handling curve construction, derivative valuation, and Greeks (`quant-risk-engine`). There is a separate risk project (`manco-risk-mngmt`) handling VaR, leverage, stress testing, and regulatory metrics. Do not import patterns, architecture, or scope from either of those projects into this one.
+This project is the data and portfolio construction layer only. There is a separate pricing project handling curve construction, derivative valuation, and Greeks (`quant-risk-engine`). There is a separate risk project (`manco-risk-mngmt`) handling VaR, leverage, stress testing, and regulatory metrics. Do not import patterns, architecture, or scope from either of those projects into this one. The derivatives overlay is experimental and not part of the core workflow. Do not expand its scope or integrate it into the main pipeline without explicit discussion.

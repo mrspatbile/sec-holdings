@@ -12,9 +12,11 @@ Real fund positions from SEC EDGAR (N-PORT + 13F), enriched with daily prices an
 
 ## What this is
 
-A data sourcing and portfolio construction layer that fetches real holdings from SEC EDGAR, enriches them with daily market prices, and allows overlaying rolling derivative positions defined in a YAML file. The combined portfolio is persisted to SQLite and consumed downstream by a pricing engine and a risk management framework.
+A tool for obtaining real long equity and bond positions from SEC public filings, enriching them with daily market prices, and persisting the result to a clean SQLite database for use in a pricing engine and a risk management framework.
 
-This is not a risk system. It does not compute VaR, leverage, or exposure metrics. It builds the portfolio that those systems consume.
+N-PORT filings (mutual funds, ETFs) provide a complete monthly portfolio snapshot — positions, weights, NAV, and enough data to compute a cash residual. 13F filings (hedge funds) provide quarterly long equity positions only — no NAV, no cash, no shorts, no derivatives. These two sources have different scopes and are used differently downstream.
+
+This is not a reconstruction of what these funds actually hold at any given moment. It is a structured baseline — carry-forward positions from public filings, priced daily, with explicit flags for what can and cannot be priced.
 
 ---
 
@@ -33,17 +35,19 @@ rolling derivatives       delta equivalents         Annex IV / VI
 
 ## Data sources
 
-| Source | Filing | Frequency | What you get |
-|---|---|---|---|
-| SEC EDGAR N-PORT | Mutual funds / ETFs | Monthly | Full portfolio: equities, bonds, weights, CUSIPs |
-| SEC EDGAR 13F | Hedge funds | Quarterly | Long equity positions only |
-| yfinance | All | Daily | Adjusted close prices per ticker |
+| Source | Filing | Frequency | What you get | Scope |
+|---|---|---|---|---|
+| SEC EDGAR N-PORT | Mutual funds / ETFs | Monthly | Full portfolio: equities, bonds, weights, CUSIPs, NAV | Complete portfolio |
+| SEC EDGAR 13F | Hedge funds | Quarterly | Long equity positions only | Position tracker |
+| yfinance | All | Daily | Adjusted close prices per ticker | Prices only |
 
 Fetching is handled by [edgartools](https://github.com/dgunning/edgartools). No API key required.
 
 ---
 
 ## Rolling derivatives overlay
+
+The overlay is experimental. It adds instrument specs to the DB for downstream consumption by the pricing project. It does not compute fair values, does not affect cash, and is not part of the core N-PORT or 13F workflow. Use it for scenario construction, not for production portfolio modeling.
 
 Defined in a YAML file. Additive only — the base SEC portfolio is never modified. Instruments roll automatically: the old contract is closed before expiry and a new one opened on the same date.
 
@@ -83,17 +87,37 @@ Rates and strikes resolve from market data at each roll date where possible. CDS
 
 ## Known constraints
 
-**No derivative positions from EDGAR.** N-PORT reports derivative notional and fair value at month-end only. No Greeks, no underlying exposure, no delta. 13F reports long equity only — no shorts, no bonds, no derivatives. Both are structural limitations of the SEC reporting rules, not of this project.
+**No derivative positions from EDGAR.**
+N-PORT reports derivative notional and fair value at month-end only — no Greeks, no delta, no underlying exposure. 13F reports long equity only — no shorts, no bonds, no derivatives. Both are structural limitations of SEC reporting rules.
+What this project does about it: a YAML overlay allows adding rolling derivative instrument specs on top of the base portfolio for experimental scenario construction. This is not part of the core workflow and does not affect cash or portfolio-level metrics.
 
-**Carry-forward assumption.** Positions are held constant between filing dates — monthly for N-PORT, quarterly for 13F. This is wrong in reality and is documented explicitly as a simplification. It is adequate for concentrated, low-turnover funds. It breaks down for high-frequency rebalancers.
+**Carry-forward assumption.**
+Positions are frozen between filing dates — monthly for N-PORT, quarterly for 13F. This is wrong in reality and intentional by design. The honest baseline is: we know what the fund held at each reporting date, and we assume it did not change until the next one.
+What this project does about it: daily prices from yfinance are applied to the carry-forward positions, giving a daily portfolio valuation series for each period. This is adequate for concentrated, low-turnover funds. It breaks down for high-frequency rebalancers.
 
-**Equity and plain bond pricing only.** Derivative positions from the overlay are passed as instrument specs to the pricing project. This layer does not price them.
+**Positions without prices.**
+Not all securities in a filing have a resolvable yfinance ticker. Bonds, private securities, foreign names not covered by yfinance, and delisted stocks will have no price series. A broken price series is worse than a missing position — it silently distorts every downstream metric.
+What this project does about it: positions are flagged with a `pricing_status` field — `priced`, `excluded` (no price available), or `partial` (delisted mid-period). Downstream projects filter on `pricing_status = 'priced'` to ensure clean time series.
 
-**Suitable funds.** Works well for equity long-only funds (Fairholme, Sequoia, Longleaf, Pershing Square) and plain vanilla bond funds. Not suitable for money market funds, derivatives-heavy strategies, or illiquid credit.
+**Objective of this project.**
+This is not a tool to reconstruct exactly what these funds hold. It is a tool to obtain real long equity and bond positions from public filings, enrich them with daily market prices. The output is a clean, queryable portfolio dataset for use in a pricing engine and a risk management framework. Completeness is not the goal. Consistency and explicitness about what is and is not included are.
 
-**Prices fetched incrementally.** Only missing dates per ticker are downloaded on each run. A run after a full fetch skips yfinance entirely for up-to-date tickers.
+**Equity and plain bond pricing only.**
+Derivative positions from the overlay are passed as instrument specs to the pricing project. This layer does not price them.
 
-**Fund metadata.** `reg_name`, `net_assets`, and `total_assets` are populated for N-PORT filings. 13F does not report net assets by regulation — `reg_name` is sourced from the company name.
+**Suitable funds.**
+Works well for concentrated, low-turnover equity funds (Fairholme, Sequoia, Longleaf, Pershing Square) and plain vanilla bond funds. Not suitable for money market funds, derivatives-heavy strategies, or illiquid credit.
+
+**Prices fetched incrementally.**
+Only missing dates per ticker are downloaded on each run. A same-day re-run skips yfinance entirely for up-to-date tickers.
+
+**Fund metadata.**
+`reg_name`, `net_assets`, and `total_assets` are populated for N-PORT filings. 13F does not report net assets by regulation — `reg_name` is sourced from the company name.
+
+**Cash positions.**
+For N-PORT funds, cash is computed as the residual between `net_assets` (from the filing) and the sum of all priced positions at each filing date. Cash is held constant between filing dates — it does not move with daily price changes, only with the next filing snapshot. This is not yet implemented — `net_assets` is stored in the DB and the computation is planned after `pricing_status` is complete.
+
+For 13F funds, `net_assets` is not available in the filing by regulation. 13F is therefore treated as a long equity position tracker only, not a complete portfolio, and no cash position is computed.
 
 ---
 
