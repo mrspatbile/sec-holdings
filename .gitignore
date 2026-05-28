@@ -1,0 +1,24 @@
+# Database
+*.db
+*.db-shm
+*.db-wal
+data/
+
+# Python
+*.pyc
+__pycache__/
+
+# Environment
+.env
+.venv/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Overlays
+overlays/*.yaml
+
+# Logs
+*.log
+logs/
