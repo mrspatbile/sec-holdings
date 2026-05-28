@@ -34,3 +34,7 @@ filterwarnings = [
     "ignore::DeprecationWarning:edgar.*",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
